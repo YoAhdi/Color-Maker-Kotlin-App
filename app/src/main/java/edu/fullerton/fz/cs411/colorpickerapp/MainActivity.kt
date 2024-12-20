@@ -1,5 +1,6 @@
 package edu.fullerton.fz.cs411.colorpickerapp
 
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
@@ -7,7 +8,8 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.MutableLiveData
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.lifecycle.ViewModelProvider
 
 class MainActivity : AppCompatActivity() {
@@ -18,10 +20,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Initialize ViewModel
+        // ViewModel
         viewModel = ViewModelProvider(this).get(MyCounterViewModel::class.java)
 
-        // View bindings
         val colorBox: View = findViewById(R.id.color_box)
         val resetButton: Button = findViewById(R.id.reset_button)
 
@@ -37,40 +38,81 @@ class MainActivity : AppCompatActivity() {
         val seekBarBlue: SeekBar = findViewById(R.id.seekbar_blue)
         val editTextBlue: EditText = findViewById(R.id.edittext_blue)
 
-        // Restore persistent data
-        restoreFromPreferences()
+        // Set SeekBar range to 0-100
+        seekBarRed.max = 100
+        seekBarGreen.max = 100
+        seekBarBlue.max = 100
 
-        // Observe LiveData changes and update the color box
+        // Adjust layout for current orientation
+        adjustLayoutForOrientation()
+
         viewModel.redValue.observe(this) { updateColorBox(colorBox) }
         viewModel.greenValue.observe(this) { updateColorBox(colorBox) }
         viewModel.blueValue.observe(this) { updateColorBox(colorBox) }
 
-        // Setup controls for red
         setupColorControl(
             checkboxRed, seekBarRed, editTextRed,
             { viewModel.redValue.value ?: 0 },
             { viewModel.redValue.value = it }
         )
 
-        // Setup controls for green
         setupColorControl(
             checkboxGreen, seekBarGreen, editTextGreen,
             { viewModel.greenValue.value ?: 0 },
             { viewModel.greenValue.value = it }
         )
 
-        // Setup controls for blue
         setupColorControl(
             checkboxBlue, seekBarBlue, editTextBlue,
             { viewModel.blueValue.value ?: 0 },
             { viewModel.blueValue.value = it }
         )
 
-        // Reset button functionality
         resetButton.setOnClickListener {
             viewModel.resetValues()
             resetUI(editTextRed, editTextGreen, editTextBlue, checkboxRed, checkboxGreen, checkboxBlue)
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        adjustLayoutForOrientation()
+    }
+
+    private fun adjustLayoutForOrientation() {
+        val constraintLayout = findViewById<ConstraintLayout>(R.id.main)
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(constraintLayout)
+
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            // Landscape: Color box occupies 1/3 of the screen width
+            constraintSet.clear(R.id.color_box, ConstraintSet.TOP)
+            constraintSet.connect(R.id.color_box, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(R.id.color_box, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+            constraintSet.connect(R.id.color_box, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+            constraintSet.constrainPercentWidth(R.id.color_box, 0.33f)
+
+            constraintSet.clear(R.id.controls_layout, ConstraintSet.TOP)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.START, R.id.color_box, ConstraintSet.END)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        } else {
+            // Portrait: Color box at the top, occupying 30% of the screen height
+            constraintSet.clear(R.id.color_box, ConstraintSet.START)
+            constraintSet.connect(R.id.color_box, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+            constraintSet.connect(R.id.color_box, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(R.id.color_box, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.constrainPercentHeight(R.id.color_box, 0.3f)
+
+            constraintSet.clear(R.id.controls_layout, ConstraintSet.START)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.TOP, R.id.color_box, ConstraintSet.BOTTOM)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.connect(R.id.controls_layout, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        }
+
+        constraintSet.applyTo(constraintLayout)
     }
 
     private fun setupColorControl(
@@ -80,7 +122,6 @@ class MainActivity : AppCompatActivity() {
         getValue: () -> Int,
         setValue: (Int) -> Unit
     ) {
-        // Sync SeekBar with EditText
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
@@ -93,13 +134,12 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // Sync EditText with SeekBar
         editText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 val input = s?.toString()?.toIntOrNull() ?: 0
-                val clampedValue = input.coerceIn(0, 255)
+                val clampedValue = input.coerceIn(0, 100)
                 setValue(clampedValue)
                 seekBar.progress = clampedValue
             }
@@ -107,7 +147,6 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
 
-        // Enable/disable controls based on checkbox state
         checkbox.setOnCheckedChangeListener { _, isChecked ->
             seekBar.isEnabled = isChecked
             editText.isEnabled = isChecked
@@ -140,50 +179,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateColorBox(colorBox: View) {
-        val red = viewModel.redValue.value ?: 0
-        val green = viewModel.greenValue.value ?: 0
-        val blue = viewModel.blueValue.value ?: 0
+        val red = (viewModel.redValue.value ?: 0) * 255 / 100
+        val green = (viewModel.greenValue.value ?: 0) * 255 / 100
+        val blue = (viewModel.blueValue.value ?: 0) * 255 / 100
         colorBox.setBackgroundColor(Color.rgb(red, green, blue))
     }
-
-    private fun saveToPreferences() {
-        val sharedPreferences = getSharedPreferences("ColorPickerApp", MODE_PRIVATE)
-        val editor = sharedPreferences.edit()
-
-        // Save RGB values
-        editor.putInt("redValue", viewModel.redValue.value ?: 0)
-        editor.putInt("greenValue", viewModel.greenValue.value ?: 0)
-        editor.putInt("blueValue", viewModel.blueValue.value ?: 0)
-
-        // Save checkbox states
-        editor.putBoolean("redChecked", findViewById<CheckBox>(R.id.checkbox_red).isChecked)
-        editor.putBoolean("greenChecked", findViewById<CheckBox>(R.id.checkbox_green).isChecked)
-        editor.putBoolean("blueChecked", findViewById<CheckBox>(R.id.checkbox_blue).isChecked)
-
-        editor.apply()
-    }
-
-    private fun restoreFromPreferences() {
-        val sharedPreferences = getSharedPreferences("ColorPickerApp", MODE_PRIVATE)
-
-        // Restore RGB values
-        viewModel.redValue.value = sharedPreferences.getInt("redValue", 0)
-        viewModel.greenValue.value = sharedPreferences.getInt("greenValue", 0)
-        viewModel.blueValue.value = sharedPreferences.getInt("blueValue", 0)
-
-        // Restore checkbox states
-        findViewById<CheckBox>(R.id.checkbox_red).isChecked =
-            sharedPreferences.getBoolean("redChecked", false)
-        findViewById<CheckBox>(R.id.checkbox_green).isChecked =
-            sharedPreferences.getBoolean("greenChecked", false)
-        findViewById<CheckBox>(R.id.checkbox_blue).isChecked =
-            sharedPreferences.getBoolean("blueChecked", false)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        saveToPreferences() // Save all data when the activity goes to the background
-    }
 }
-
 
