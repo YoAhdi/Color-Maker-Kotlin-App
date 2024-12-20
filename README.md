@@ -3,7 +3,7 @@
 # Assignment 4: Persistence
 Our submission for 411A-01 18428, Assignment 4
 # 
-* Ahad Ahmad <ahadahmad@csu.fullerton.edu>  886864362
+* Ahad Ahmad <ahadahmad@csu.fullerton.edu> 
 
 # Instructions
 The project is a color maker app that can change color and also reset colors. It uses RGB colors.
